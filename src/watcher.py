@@ -258,7 +258,6 @@ class LiteratureWatcher:
         except Exception as e:
             logger.error(f"计算白名单加分失败: {e}")
             return 0.0
-        return candidates[:top_n]
     
     def generate_rss(self, articles: List[Dict[str, Any]], output_path: Path):
         """生成 RSS feed"""
@@ -269,13 +268,58 @@ class LiteratureWatcher:
         # 生成 RSS feed
         current_date = datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0000")
         
+        # RSS header
+        rss_items = []
+        for article in articles:
+            title = article.get('title', 'Untitled')
+            authors = article.get('authors', [])
+            authors_str = ', '.join(authors[:3])  # 只显示前3个作者
+            if len(authors) > 3:
+                authors_str += ' et al.'
+            
+            abstract = article.get('abstract', '')[:500]  # 限制摘要长度
+            url = article.get('url', article.get('doi', ''))
+            journal = article.get('journal', '')
+            date = article.get('date', '')
+            score = article.get('total_score', 0)
+            
+            # 格式化日期为 RSS 标准格式
+            try:
+                if isinstance(date, list):
+                    date_str = '-'.join(str(x) for x in date if x)
+                else:
+                    date_str = str(date)
+                pub_date = datetime.strptime(date_str[:10], '%Y-%m-%d').strftime("%a, %d %b %Y %H:%M:%S +0000")
+            except:
+                pub_date = current_date
+            
+            description = f"""
+<p><strong>Authors:</strong> {authors_str}</p>
+<p><strong>Journal:</strong> {journal}</p>
+<p><strong>Score:</strong> {score:.3f}</p>
+<p><strong>Abstract:</strong> {abstract}...</p>
+"""
+            
+            item = f"""
+    <item>
+      <title><![CDATA[{title}]]></title>
+      <link>{url}</link>
+      <description><![CDATA[{description}]]></description>
+      <pubDate>{pub_date}</pubDate>
+      <guid>{url}</guid>
+    </item>"""
+            
+            rss_items.append(item)
+        
         rss_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
     <title>ZotWatcher Recommendations</title>
-    <description>Personalized academic literature recommendations</description>
-    <link>https://github.com/yourusername/ZotWatcher</link>
+    <description>Personalized academic literature recommendations based on your Zotero library</description>
+    <link>https://github.com/yuzuan/ZotWatcher</link>
     <lastBuildDate>{current_date}</lastBuildDate>
+    <language>en-us</language>
+{chr(10).join(rss_items)}
   </channel>
 </rss>"""
         
@@ -294,21 +338,187 @@ class LiteratureWatcher:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         article_count = len(articles)
         
+        # 生成文章列表 HTML
+        articles_html = []
+        for idx, article in enumerate(articles, 1):
+            title = article.get('title', 'Untitled')
+            authors = article.get('authors', [])
+            authors_str = ', '.join(authors[:5])
+            if len(authors) > 5:
+                authors_str += ' et al.'
+            
+            abstract = article.get('abstract', 'No abstract available.')
+            journal = article.get('journal', 'Unknown')
+            date = article.get('date', 'Unknown')
+            if isinstance(date, list):
+                date = '-'.join(str(x) for x in date if x)
+            
+            url = article.get('url', article.get('doi', '#'))
+            score = article.get('total_score', 0)
+            scores = article.get('scores', {})
+            source = article.get('source', 'Unknown')
+            
+            # 格式化分数
+            semantic_score = scores.get('semantic', 0)
+            time_score = scores.get('time', 0)
+            whitelist_score = scores.get('whitelist', 0)
+            
+            article_html = f"""
+        <div class="article">
+            <h3><a href="{url}" target="_blank">{idx}. {title}</a></h3>
+            <p class="meta">
+                <strong>Authors:</strong> {authors_str}<br>
+                <strong>Journal:</strong> {journal} | <strong>Date:</strong> {date} | <strong>Source:</strong> {source}
+            </p>
+            <div class="scores">
+                <span class="score-badge total">Total: {score:.3f}</span>
+                <span class="score-badge">Semantic: {semantic_score:.3f}</span>
+                <span class="score-badge">Time: {time_score:.3f}</span>
+                <span class="score-badge">Whitelist: {whitelist_score:.3f}</span>
+            </div>
+            <p class="abstract">{abstract[:500]}...</p>
+        </div>
+"""
+            articles_html.append(article_html)
+        
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZotWatcher Recommendations</title>
     <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        h1 {{ color: #333; }}
-        .article {{ margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; }}
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }}
+        
+        .container {{
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        
+        h1 {{
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }}
+        
+        .header-info {{
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ecf0f1;
+        }}
+        
+        .article {{
+            margin-bottom: 30px;
+            padding: 25px;
+            background-color: #fff;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            transition: box-shadow 0.3s;
+        }}
+        
+        .article:hover {{
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }}
+        
+        .article h3 {{
+            color: #1a73e8;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            line-height: 1.4;
+        }}
+        
+        .article h3 a {{
+            color: #1a73e8;
+            text-decoration: none;
+        }}
+        
+        .article h3 a:hover {{
+            text-decoration: underline;
+        }}
+        
+        .meta {{
+            color: #5f6368;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }}
+        
+        .scores {{
+            margin: 15px 0;
+        }}
+        
+        .score-badge {{
+            display: inline-block;
+            padding: 4px 12px;
+            background-color: #e8f0fe;
+            color: #1967d2;
+            border-radius: 16px;
+            font-size: 0.85em;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }}
+        
+        .score-badge.total {{
+            background-color: #34a853;
+            color: white;
+            font-weight: bold;
+        }}
+        
+        .abstract {{
+            color: #5f6368;
+            line-height: 1.8;
+            text-align: justify;
+        }}
+        
+        .no-articles {{
+            text-align: center;
+            padding: 60px 20px;
+            color: #7f8c8d;
+        }}
+        
+        @media (max-width: 768px) {{
+            body {{
+                padding: 10px;
+            }}
+            
+            .container {{
+                padding: 20px;
+            }}
+            
+            h1 {{
+                font-size: 2em;
+            }}
+        }}
     </style>
 </head>
 <body>
-    <h1>ZotWatcher 推荐文章</h1>
-    <p>生成时间: {current_time}</p>
-    <p>共 {article_count} 篇文章</p>
+    <div class="container">
+        <h1>📚 ZotWatcher Recommendations</h1>
+        <div class="header-info">
+            <p><strong>Generated:</strong> {current_time}</p>
+            <p><strong>Total Articles:</strong> {article_count}</p>
+            <p><strong>Description:</strong> Personalized academic literature recommendations based on your Zotero library</p>
+        </div>
+        
+        {''.join(articles_html) if articles_html else '<div class="no-articles"><h2>No articles found</h2><p>Try adjusting your configuration or wait for new publications.</p></div>'}
+    </div>
 </body>
 </html>"""
         
