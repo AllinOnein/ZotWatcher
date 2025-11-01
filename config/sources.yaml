@@ -1,13 +1,19 @@
 window_days: 7
 openalex:
   enabled: false
-  mailto: "you@example.com"
+  mailto: "yuzuan94@gmail.com"
 crossref:
   enabled: true
-  mailto: "you@example.com"
+  mailto: "yuzuan94@gmail.com"
 arxiv:
   enabled: true
-  categories: ["q-bio.GN", "cs.LG"]
+  categories: 
+    - "q-bio.GN"
+    - "cs.LG"
+    - "cs.AI"      # 新增 AI
+    - "cs.CL"      # 新增 NLP
+    - "stat.ML"    # 新增统计学习
+  max_results: 100
 biorxiv:
   enabled: true
   from_days_ago: 7

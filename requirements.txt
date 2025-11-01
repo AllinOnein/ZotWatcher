@@ -1,34 +1,35 @@
-# Python 版本要求: Python >= 3.10
-# Zotero API
+# Python 版本要求: Python >= 3.9
+
+# 核心框架
+pydantic>=2.6
+python-dotenv>=1.0.0
+PyYAML>=6.0.1
+requests>=2.31.0
+
+# Zotero API (参考项目使用 requests,不需要 pyzotero)
+# 但保留以防需要
 pyzotero>=1.5.0
 
 # 数据处理
 numpy>=1.24.0
 pandas>=2.0.0
-requests>=2.31.0
-python-dotenv>=1.0.0
-PyYAML>=6.0
 
 # 向量化和相似度计算
 sentence-transformers>=2.2.0
 faiss-cpu>=1.7.4
 torch>=2.0.0
 
-# RSS 生成
-feedgen>=0.9.0
+# 去重
+rapidfuzz>=3.5.0
 
-# HTML 模板
+# RSS 和 HTML
+feedgen>=0.9.0
+feedparser>=6.0.0
 jinja2>=3.1.0
 
-# API 相关
+# 数据源 API
 arxiv>=1.4.0
 crossref-commons>=0.0.7
-
-# 可选：Altmetric
-# pyaltmetric>=1.0.0
-
-# 可选：期刊指标
-# scholarly>=1.7.0
 
 # 工具
 tqdm>=4.65.0

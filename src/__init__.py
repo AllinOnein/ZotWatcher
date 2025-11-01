@@ -1,5 +1,3 @@
-"""ZotWatcher - 基于 Zotero 的学术文献推荐系统"""
+"""ZotWatcher package initialization."""
 
-__version__ = "1.0.0"
-__author__ = "Your Name"
-__email__ = "your.email@example.com"
+__all__ = []

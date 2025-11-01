@@ -1,59 +1,50 @@
-"""工具函数"""
-import os
-import yaml
-import logging
-from pathlib import Path
-from typing import Dict, Any
-from dotenv import load_dotenv
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import datetime, timezone
+from typing import Any, Dict
 
 
-def setup_logging(level=logging.INFO):
-    """设置日志"""
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    return logging.getLogger("ZotWatcher")
+def json_dumps(data: Any, *, indent: int | None = None) -> str:
+    return json.dumps(data, ensure_ascii=False, indent=indent, sort_keys=True)
 
 
-def load_config() -> Dict[str, Any]:
-    """加载配置文件"""
-    # 加载环境变量
-    load_dotenv()
-    
-    config_dir = Path("config")
-    config = {}
-    
-    # 加载各配置文件
-    for config_file in ["zotero.yaml", "sources.yaml", "scoring.yaml"]:
-        config_path = config_dir / config_file
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                # 替换环境变量
-                content = expand_env_vars(content)
-                config[config_file.replace(".yaml", "")] = yaml.safe_load(content)
-    
-    return config
+def hash_content(*parts: str) -> str:
+    sha = hashlib.sha256()
+    for part in parts:
+        if part:
+            sha.update(part.encode("utf-8"))
+    return sha.hexdigest()
 
 
-def expand_env_vars(text: str) -> str:
-    """展开文本中的环境变量"""
-    import re
-    
-    def replace_var(match):
-        var_name = match.group(1)
-        value = os.getenv(var_name)
-        if value is None:
-            logger = logging.getLogger("ZotWatcher.utils")
-            logger.warning(f"环境变量 {var_name} 未设置")
-            return ""
-        return value
-    
-    return re.sub(r'\$\{(\w+)\}', replace_var, text)
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
-def ensure_dir(path: Path):
-    """确保目录存在"""
-    path.mkdir(parents=True, exist_ok=True)
+def ensure_isoformat(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def iso_to_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def chunk_dict(d: Dict[str, Any], *, max_len: int = 80) -> Dict[str, Any]:
+    """Split long string values to keep JSON manageable (best-effort)."""
+    result = {}
+    for key, value in d.items():
+        if isinstance(value, str) and len(value) > max_len:
+            result[key] = value[:max_len] + "…"
+        else:
+            result[key] = value
+    return result
+
+
+__all__ = ["hash_content", "json_dumps", "utc_now", "ensure_isoformat", "iso_to_datetime"]
