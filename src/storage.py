@@ -49,7 +49,89 @@ class ProfileStorage:
 
     def initialize(self) -> None:
         conn = self.connect()
-        conn.executescript(SCHEMA)
+        
+        # Check if we need to migrate from old schema
+        try:
+            # Try to get existing table info
+            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='items'")
+            if cursor.fetchone():
+                # Table exists, check if it has the version column
+                cursor = conn.execute("PRAGMA table_info(items)")
+                columns = [row[1] for row in cursor.fetchall()]
+                
+                if 'version' not in columns:
+                    # Old schema detected, need to migrate
+                    import logging
+                    logging.warning("Old database schema detected. Starting migration...")
+                    
+                    # Get old columns dynamically
+                    old_columns = columns
+                    
+                    # Backup old table
+                    conn.execute("ALTER TABLE items RENAME TO items_old")
+                    
+                    # Create new schema
+                    conn.executescript(SCHEMA)
+                    
+                    # Build migration SQL based on available columns
+                    # Required new columns: key, version, title, raw_json
+                    # Optional columns that may exist: abstract, creators, tags, collections, year, doi, url, content_hash, embedding, updated_at
+                    new_required = ['key', 'version', 'title', 'abstract', 'creators', 'tags', 'collections', 
+                                   'year', 'doi', 'url', 'raw_json', 'content_hash', 'embedding', 'updated_at']
+                    
+                    # Build SELECT clause with available columns
+                    select_parts = []
+                    for col in new_required:
+                        if col == 'version':
+                            select_parts.append('0 as version')  # Default version for old items
+                        elif col == 'collections':
+                            if 'collections' in old_columns:
+                                select_parts.append('collections')
+                            else:
+                                select_parts.append("'[]' as collections")  # Default empty array
+                        elif col in old_columns:
+                            select_parts.append(col)
+                        else:
+                            # Column doesn't exist in old schema, use NULL or default
+                            select_parts.append(f'NULL as {col}')
+                    
+                    # Migrate data
+                    migration_sql = f"""
+                        INSERT INTO items ({', '.join(new_required)})
+                        SELECT {', '.join(select_parts)}
+                        FROM items_old
+                    """
+                    
+                    try:
+                        conn.execute(migration_sql)
+                        # Drop old table after successful migration
+                        conn.execute("DROP TABLE items_old")
+                        logging.info("Database migration completed successfully")
+                    except sqlite3.Error as migrate_error:
+                        logging.error(f"Migration failed: {migrate_error}")
+                        logging.warning("Dropping old data and starting fresh")
+                        # If migration fails, just drop old table and start fresh
+                        conn.execute("DROP TABLE IF EXISTS items_old")
+                else:
+                    # New schema already exists, just ensure all tables are created
+                    conn.executescript(SCHEMA)
+            else:
+                # No table exists, create from scratch
+                conn.executescript(SCHEMA)
+                
+        except sqlite3.Error as e:
+            # If any error occurs, try to create schema from scratch
+            import logging
+            logging.error(f"Error during database initialization: {e}")
+            logging.info("Creating schema from scratch...")
+            # Drop any problematic tables
+            try:
+                conn.execute("DROP TABLE IF EXISTS items_old")
+                conn.execute("DROP TABLE IF EXISTS items")
+            except:
+                pass
+            conn.executescript(SCHEMA)
+        
         conn.commit()
 
     def close(self) -> None:

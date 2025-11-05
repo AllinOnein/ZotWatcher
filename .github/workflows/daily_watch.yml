@@ -48,12 +48,35 @@ jobs:
           data/profile.sqlite
           data/faiss.index
           data/profile.json
-        key: profile-${{ steps.cache-key.outputs.year_month }}
+        key: profile-v2-${{ steps.cache-key.outputs.year_month }}
         restore-keys: |
-          profile-
+          profile-v2-
+    
+    - name: Check database schema compatibility
+      if: steps.cache-profile.outputs.cache-hit == 'true'
+      run: |
+        if [ -f data/profile.sqlite ]; then
+          echo "Checking database schema..."
+          python -c "
+          import sqlite3
+          import sys
+          try:
+              conn = sqlite3.connect('data/profile.sqlite')
+              cursor = conn.execute('PRAGMA table_info(items)')
+              columns = [row[1] for row in cursor.fetchall()]
+              if 'version' not in columns:
+                  print('Old schema detected, forcing rebuild')
+                  sys.exit(1)
+              else:
+                  print('Schema is compatible')
+          except Exception as e:
+              print(f'Error checking schema: {e}')
+              sys.exit(1)
+          " || echo "force_rebuild=true" >> $GITHUB_ENV
+        fi
     
     - name: Build full profile (if cache miss or new month)
-      if: steps.cache-profile.outputs.cache-hit != 'true'
+      if: steps.cache-profile.outputs.cache-hit != 'true' || env.force_rebuild == 'true'
       env:
         ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
         ZOTERO_USER_ID: ${{ secrets.ZOTERO_USER_ID }}
